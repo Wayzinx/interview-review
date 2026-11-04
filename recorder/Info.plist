@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>local.interview-review.recorder</string>
+	<key>CFBundleName</key>
+	<string>interview-recorder</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>录制你在面试中的回答</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>录下电脑播放的声音（面试官说的话），不录屏幕</string>
+</dict>
+</plist>

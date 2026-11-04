@@ -1,0 +1,38 @@
+#!/bin/bash
+# interview — 面试录音 + 本地转写。复盘分析在 Claude Code 里用 /interview-review 做。
+set -euo pipefail
+ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+PY="$ROOT/.venv/bin/interview-py"
+
+usage() {
+  cat <<'EOF'
+用法:
+  interview rec [名称]            开始录音（系统声音=面试官，麦克风=我），Ctrl-C 结束后自动转写
+                                  例: interview rec 某公司-后端-一面
+  interview import <文件> [名称]  导入已有录音/录屏（单轨混音，自动区分说话人）并转写
+  interview transcribe <目录>     重新转写某场面试
+  interview ls                    列出所有面试
+复盘：在 Claude Code 里运行 /interview-review（默认最近一场）
+EOF
+}
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  rec)
+    dir="$("$PY" new "${1:-面试}")"
+    rc=0; "$ROOT/bin/interview-recorder" --out "$dir" || rc=$?
+    if [ -f "$dir/me.m4a" ] && [ -f "$dir/interviewer.m4a" ]; then
+      echo "开始本地转写（首次运行会下载约 1GB 模型）…"
+      "$PY" transcribe "$dir" >/dev/null
+      echo "下一步：在 Claude Code 里运行 /interview-review $dir"
+    fi
+    exit $rc ;;
+  import)
+    [ $# -ge 1 ] || { usage; exit 2; }
+    dir="$("$PY" import "$@")"
+    "$PY" transcribe "$dir" >/dev/null
+    echo "下一步：在 Claude Code 里运行 /interview-review $dir" ;;
+  transcribe) "$PY" transcribe "$@" ;;
+  ls) "$PY" ls ;;
+  *) usage ;;
+esac

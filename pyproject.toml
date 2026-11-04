@@ -1,0 +1,26 @@
+[project]
+name = "interview-review"
+version = "0.1.0"
+description = "面试录音 → 中文转写 → 对话稿，供 Claude Code 做逐题复盘"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "funasr>=1.2",
+    "modelscope",
+    "torch",
+    "torchaudio",
+    "soundfile",
+    "numpy",
+]
+
+[project.scripts]
+interview-py = "ir.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ir"]
