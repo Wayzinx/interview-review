@@ -121,4 +121,56 @@ extension Store {
             })
     }
 
+    // MARK: 飞书妙记
+
+    /// 生成给妙记上传的混音文件，并在访达里选中它
+    func feishuExport(_ id: String, done: @escaping (URL?) -> Void) {
+        var out: [String] = []
+        do {
+            try runProcess(
+                pyCLI, ["feishu-export", id], env: baseEnv(), onLine: { out.append($0) },
+                done: { code in
+                    if code == 0, let path = out.last(where: { $0.hasPrefix("/") }) {
+                        let url = URL(fileURLWithPath: path)
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                        done(url)
+                    } else {
+                        self.alert = AppAlert(title: "导出失败", message: out.suffix(4).joined(separator: "\n"))
+                        done(nil)
+                    }
+                })
+        } catch {
+            alert = AppAlert(title: "导出失败", message: error.localizedDescription)
+            done(nil)
+        }
+    }
+
+    /// 用妙记导出的文字记录替换本地转写（本地版本备份为 transcript.local.*）
+    func feishuImport(_ id: String, file: URL, reanalyze: Bool) {
+        guard jobs[id] == nil else { return }
+        jobErrors[id] = nil
+        jobs[id] = Job(kind: .transcribe, line: "导入飞书妙记文字记录…")
+        var tail: [String] = []
+        do {
+            processes[id] = try runProcess(
+                pyCLI, ["feishu-import", id, file.path], env: baseEnv(),
+                onLine: { line in
+                    if !line.isEmpty, !line.contains("torchaudio"), !line.contains("ffmpeg") { tail.append(line) }
+                },
+                done: { code in
+                    self.jobs[id] = nil
+                    self.processes[id] = nil
+                    self.refresh()
+                    guard code == 0 else {
+                        let why = tail.last(where: { $0.contains("Error") || $0.contains("没从") }) ?? tail.suffix(3).joined(separator: "\n")
+                        self.jobErrors[id] = "导入妙记失败：\n" + why
+                        return
+                    }
+                    if reanalyze { self.analyze(id) }
+                })
+        } catch {
+            jobs[id] = nil
+            jobErrors[id] = "导入妙记失败：\(error.localizedDescription)"
+        }
+    }
 }

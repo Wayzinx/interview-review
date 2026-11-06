@@ -96,7 +96,10 @@ def to_turns(segs, gap: float = 8.0) -> list[dict]:
     return turns
 
 
-def write_transcript(d: Path, segs, duration: float, mode: str, note: str) -> Path:
+LOCAL_ENGINE = "本地 SenseVoice 自动转写，英文术语/专有名词可能有同音错字，按上下文理解"
+
+
+def write_transcript(d: Path, segs, duration: float, mode: str, note: str, engine: str = LOCAL_ENGINE) -> Path:
     by = {}
     for s in segs:
         by.setdefault(s.speaker, []).append(s)
@@ -110,6 +113,7 @@ def write_transcript(d: Path, segs, duration: float, mode: str, note: str) -> Pa
                 "mode": mode,
                 "duration": duration,
                 "note": note,
+                "engine": engine,
                 "segments": [s.__dict__ for s in sorted(segs, key=lambda x: x.start)],
                 "turns": turns,
             },
@@ -131,7 +135,7 @@ def write_transcript(d: Path, segs, duration: float, mode: str, note: str) -> Pa
         f"- 时长：{fmt(duration)}；面试官说话约 {talk.get('面试官', 0):.1f} 分钟，我说话约 {talk.get('我', 0):.1f} 分钟",
         f"- 说明：{note}",
         *([f"- 录音缺口：" + "；".join(f"{fmt(a)}–{fmt(b)}" for a, b, _ in gaps) + "（这段没录到，复盘时注意前后不连续）"] if gaps else []),
-        "- 识别：本地 SenseVoice 自动转写，英文术语/专有名词可能有同音错字，按上下文理解",
+        f"- 识别：{engine}",
         "",
         "---",
         "",
@@ -234,7 +238,8 @@ def _rewrite(d: Path, swap: bool):
     if swap:
         tag = "；已手动对调过说话人"
         note = note.replace(tag, "") if tag in note else note + tag
-    return write_transcript(d, segs, data.get("duration", 0), data.get("mode", "mixed"), note)
+    return write_transcript(d, segs, data.get("duration", 0), data.get("mode", "mixed"), note,
+                            data.get("engine", LOCAL_ENGINE))
 
 
 def cmd_swap(a):
@@ -245,6 +250,43 @@ def cmd_swap(a):
 def cmd_render(a):
     """不重跑识别，用 transcript.json 重新生成对话稿（改了标记、缺口之后用）。"""
     print(_rewrite(Path(a.dir).expanduser().resolve(), swap=False))
+
+
+def cmd_feishu_export(a):
+    """生成给飞书妙记上传的混音文件，打印路径。"""
+    from . import feishu
+
+    print(feishu.make_upload_mix(Path(a.dir).expanduser().resolve()))
+
+
+def cmd_feishu_import(a):
+    """用妙记导出的文字记录替换本地转写；本地版本备份为 transcript.local.*。"""
+    import shutil
+
+    from . import feishu
+
+    d = Path(a.dir).expanduser().resolve()
+    src = Path(a.file).expanduser()
+    segs = feishu.parse_file(src)
+    iv, me = d / "interviewer.m4a", d / "me.m4a"
+    duration = max(s.end for s in segs)
+    if iv.exists() and me.exists():
+        from .asr import SR, load_audio
+
+        iva, mea = load_audio(iv), load_audio(me)
+        feishu.assign_by_energy(segs, iva, mea)
+        duration = max(duration, len(iva) / SR, len(mea) / SR)
+        mode, how = "dual", "说话人按两条音轨的音量判定"
+    else:
+        mode, how = "mixed", feishu.assign_by_labels(segs)
+    for ext in ("md", "json"):
+        cur, bak = d / f"transcript.{ext}", d / f"transcript.local.{ext}"
+        if cur.exists() and not bak.exists():
+            shutil.copy2(cur, bak)
+    note = f"飞书妙记转写（{src.name}）；{how}" + ("；本地转写备份在 transcript.local.md" if (d / "transcript.local.md").exists() else "")
+    out = write_transcript(d, segs, duration, mode, note, engine="飞书妙记（准确率较高，仍可能有少量错字，按上下文理解）")
+    print(f"导入 {len(segs)} 段", file=sys.stderr)
+    print(out)
 
 
 def cmd_ls(a):
@@ -278,6 +320,13 @@ def main():
     s = sub.add_parser("render", help="用已有识别结果重新生成对话稿")
     s.add_argument("dir")
     s.set_defaults(fn=cmd_render)
+    s = sub.add_parser("feishu-export", help="生成给飞书妙记上传的混音文件")
+    s.add_argument("dir")
+    s.set_defaults(fn=cmd_feishu_export)
+    s = sub.add_parser("feishu-import", help="导入飞书妙记导出的文字记录（txt / srt / docx）")
+    s.add_argument("dir")
+    s.add_argument("file")
+    s.set_defaults(fn=cmd_feishu_import)
     s = sub.add_parser("ls", help="列出所有面试")
     s.set_defaults(fn=cmd_ls)
     a = p.parse_args()

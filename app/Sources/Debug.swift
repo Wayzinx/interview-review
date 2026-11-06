@@ -104,11 +104,16 @@ enum DebugSnapshot {
         root.cacheDisplay(in: root.bounds, to: rep)
         let webs = allWebViews(in: root)
         var pending = webs.count
+        var finished = false
         func finish() {
+            guard !finished else { return }
+            finished = true
             try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
             then()
         }
         if pending == 0 { return finish() }
+        // 窗口被挡住 / 锁屏时 WebKit 暂停渲染，takeSnapshot 可能一直不回调：5 秒后照样出图
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { finish() }
         for wv in webs {
             wv.takeSnapshot(with: nil) { img, _ in
                 if let img {

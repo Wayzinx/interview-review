@@ -15,6 +15,7 @@ struct SessionView: View {
     @State private var showContext = false
     @State private var confirmTrash = false
     @State private var question = ""
+    @State private var showFeishu = false
 
     private var job: Job? { store.jobs[session.id] }
     private var busy: Bool { job != nil }
@@ -64,10 +65,12 @@ struct SessionView: View {
             tab = session.hasReport || !session.hasTranscript ? 0 : 1
             if let t = UserDefaults.standard.object(forKey: "debugTab") as? Int { tab = t }
             if store.contextPromptFor == session.id { showContext = true }
+            if ProcessInfo.processInfo.environment["IR_SHOW_FEISHU"] != nil { showFeishu = true }  // 调试截图用
         }
         .onChange(of: store.contextPromptFor) { _, v in if v == session.id { showContext = true } }
         .onChange(of: session.hasReport) { _, has in if has && tab != 2 { tab = 0 } }
         .onDisappear { player.stop() }
+        .sheet(isPresented: $showFeishu) { FeishuSheet(session: session) }
         .sheet(isPresented: $showContext) {
             ContextEditor(session: session, prompted: store.pendingAnalyze.contains(session.id))
                 .onAppear { store.contextSheet(opened: session.id) }
@@ -112,6 +115,9 @@ struct SessionView: View {
             Menu {
                 if session.hasAudio {
                     Button(session.hasTranscript ? "重新转写" : "转写") { store.transcribe(session.id) }.disabled(busy)
+                }
+                if session.hasAudio {
+                    Button("用飞书妙记转写（更准）…") { showFeishu = true }.disabled(busy)
                 }
                 if session.isMixed && session.hasTranscript {
                     Button("对调说话人（面试官 ↔ 我）") { store.swapSpeakers(session.id) }.disabled(busy)
@@ -377,5 +383,90 @@ struct RenameSheet: View {
         guard !n.isEmpty else { return }
         dismiss()
         if n != session.title { store.rename(session, to: n) }
+    }
+}
+
+/// 用飞书妙记转写的三步引导：导出混音 → 在妙记里上传并导出文字记录 → 导回来
+struct FeishuSheet: View {
+    let session: Session
+    @EnvironmentObject var store: Store
+    @Environment(\.dismiss) private var dismiss
+    @State private var exported: URL?
+    @State private var exporting = false
+    @State private var reanalyze = true
+    @State private var dropTargeted = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("用飞书妙记转写").font(.title3.bold())
+            Text("妙记的识别比本地模型准，尤其是英文术语和专有名词。三步，主要时间花在等妙记转写。")
+                .font(.callout).foregroundStyle(.secondary)
+            Label("请用个人飞书账号。用公司账号的话，面试录音和文字会存进公司的飞书空间。", systemImage: "exclamationmark.shield")
+                .font(.callout).foregroundStyle(.orange)
+
+            step(1, "导出上传用的音频",
+                 exported.map { "已导出：\($0.lastPathComponent)" } ?? "把两条音轨混成一个文件，时间轴和这里完全一致") {
+                Button(exporting ? "正在导出…" : exported == nil ? "导出并在访达中显示" : "在访达中显示") {
+                    if let u = exported { return NSWorkspace.shared.activateFileViewerSelecting([u]) }
+                    exporting = true
+                    store.feishuExport(session.id) { url in
+                        exported = url
+                        exporting = false
+                    }
+                }
+                .disabled(exporting)
+            }
+            step(2, "在妙记里转写并导出",
+                 "飞书（切到个人账号）→ 妙记 → 上传音视频，选上面的文件。转写完成后点「…」→ 导出 → 文字记录，txt、srt、Word 都可以。") {
+                EmptyView()
+            }
+            step(3, "导入导出的文件", "选择文件，或者直接拖进这个窗口。说话人会按两条音轨自动对上。") {
+                Button("选择文件…", action: pick)
+            }
+            Toggle("导入后重新生成复盘", isOn: $reanalyze)
+            HStack {
+                Text("当前的本地转写会备份为 transcript.local.md").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("关闭") { dismiss() }.keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 580)
+        .overlay {
+            if dropTargeted {
+                RoundedRectangle(cornerRadius: 12).stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8]))
+                    .padding(4).allowsHitTesting(false)
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let u = urls.first else { return false }
+            importFile(u)
+            return true
+        } isTargeted: { dropTargeted = $0 }
+    }
+
+    private func step<C: View>(_ n: Int, _ title: String, _ detail: String, @ViewBuilder action: () -> C) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(n)").font(.headline).frame(width: 24, height: 24)
+                .background(Color.accentColor.opacity(0.15), in: Circle())
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).fontWeight(.medium)
+                Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                action()
+            }
+        }
+    }
+
+    private func pick() {
+        let p = NSOpenPanel()
+        p.allowedContentTypes = ["txt", "srt", "docx", "doc"].compactMap { UTType(filenameExtension: $0) }
+        p.message = "选择飞书妙记导出的文字记录"
+        guard p.runModal() == .OK, let u = p.url else { return }
+        importFile(u)
+    }
+
+    private func importFile(_ u: URL) {
+        store.feishuImport(session.id, file: u, reanalyze: reanalyze)
+        dismiss()
     }
 }
