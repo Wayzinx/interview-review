@@ -52,7 +52,7 @@
 
 ### 方式一：下载 DMG（推荐）
 
-1. 到 [Releases](https://github.com/Wayzinx/interview-review/releases) 下载 `面试复盘-<版本>-arm64.dmg`（Apple 芯片）
+1. 到 [Releases](https://github.com/Wayzinx/interview-review/releases) 下载 `InterviewReview-<版本>-arm64.dmg`（Apple 芯片）
 2. 把「面试复盘」拖进「应用程序」
 3. 第一次打开会提示"无法验证开发者"：项目没有付费的 Apple 开发者账号做公证。到 **系统设置 → 隐私与安全性**，在下方找到面试复盘，点 **仍要打开**
 4. 首次转写时 App 会自动下载 Python 和语音识别依赖（约 1GB，几分钟），之后离线可用

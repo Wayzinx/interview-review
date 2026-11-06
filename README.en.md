@@ -48,7 +48,7 @@ Recordings, transcripts and reports stay on your Mac in `~/Interviews/` (overrid
 
 ### Option 1: DMG (recommended)
 
-1. Download `面试复盘-<version>-arm64.dmg` from [Releases](https://github.com/Wayzinx/interview-review/releases) (Apple silicon)
+1. Download `InterviewReview-<version>-arm64.dmg` from [Releases](https://github.com/Wayzinx/interview-review/releases) (Apple silicon)
 2. Drag the app into Applications
 3. On first launch macOS says it can't verify the developer — the project isn't notarized (no paid Apple Developer account). Open **System Settings → Privacy & Security**, find the app near the bottom and click **Open Anyway**
 4. On the first transcription the app downloads Python and the speech dependencies (~1 GB, a few minutes); after that it works offline

@@ -1,6 +1,6 @@
 #!/bin/bash
 # 打包 DMG：App 里内置转写程序、复盘规则和 uv，用户首次启动时自动准备运行环境，不需要命令行。
-# 产物：dist/面试复盘-<版本>-arm64.dmg
+# 产物：dist/InterviewReview-<版本>-arm64.dmg
 # 没有 Apple 开发者账号，只能临时签名（ad-hoc），用户第一次打开要在「隐私与安全性」里点「仍要打开」。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -44,7 +44,7 @@ cat > "$STAGE/先看我.txt" <<TXT
 
 项目主页：https://github.com/Wayzinx/interview-review
 TXT
-DMG="$DIST/面试复盘-$VERSION-arm64.dmg"
+DMG="$DIST/InterviewReview-$VERSION-arm64.dmg"   # GitHub 会吞掉附件名里的中文
 hdiutil create -volname "面试复盘" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 rm -rf "$STAGE"
 ls -lh "$DMG"
