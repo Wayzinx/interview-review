@@ -42,6 +42,7 @@ enum DebugSnapshot {
             for w in NSApp.windows { w.contentView?.superview.map(flattenVibrancy) }
             if env["IR_ACTION"] == "testmodel", sessionID == nil { store.testModel() }
             if env["IR_ACTION"] == "soundcheck" { Task { await store.runSoundCheck() } }
+            if env["IR_ACTION"] == "prepare" { store.prepareRuntime() }
             if let id = sessionID {
                 switch env["IR_ACTION"] {
                 case "transcribe": store.transcribe(id)
@@ -69,6 +70,7 @@ enum DebugSnapshot {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 waited += 1
                 let busy = !store.jobs.isEmpty || store.modelTest?.running == true || store.soundCheck?.running == true
+                    || store.runtimeJob != nil
                 if waited < 4 || (env["IR_ACTION"] != nil && busy && waited < 900) {
                     return poll()
                 }
@@ -76,6 +78,7 @@ enum DebugSnapshot {
                     if let id = sessionID, let e = store.jobErrors[id] { print("JOB_ERROR: \(e)") }
                     if let t = store.modelTest { print("MODEL_TEST: ok=\(t.ok) \(t.message)") }
                     if let c = store.soundCheck { print("SOUND_CHECK: system=\(c.systemPeak)dB mic=\(c.micPeak)dB") }
+                    print("RUNTIME_READY: \(store.runtimeReady) \(pyCLI)")
                     if let out = env["IR_RESULT"] {
                         let c = store.soundCheck
                         try? "system=\(c?.systemPeak ?? -999) mic=\(c?.micPeak ?? -999) perm=\(AudioCapturePermission.status() ?? -1)"

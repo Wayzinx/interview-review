@@ -65,4 +65,4 @@ func claudeBinary() -> String? {
     return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
 }
 
-let pyCLI = irRoot.appendingPathComponent(".venv/bin/interview-py").path
+let pyCLI = runtimeRoot.appendingPathComponent(".venv/bin/interview-py").path

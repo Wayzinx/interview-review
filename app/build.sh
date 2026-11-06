@@ -1,5 +1,6 @@
 #!/bin/bash
 # 构建「面试复盘.app」并安装到 ~/Applications
+# IR_DIST=1：给 DMG 用——不写源码路径、不签名、不安装，交给 scripts/package-dmg.sh 处理
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT="$(cd .. && pwd)"
@@ -14,8 +15,11 @@ fi
 
 swiftc -O -swift-version 5 -parse-as-library -target arm64-apple-macos15.0 \
   Sources/*.swift ../recorder/Recorder.swift -o "$APP/Contents/MacOS/InterviewReview"
-sed "s#__ROOT__#$ROOT#" Info.plist > "$APP/Contents/Info.plist"
+VERSION=$(grep '^version' ../pyproject.toml | cut -d'"' -f2)
+if [ -n "${IR_DIST:-}" ]; then IRROOT=""; else IRROOT="$ROOT"; fi
+sed -e "s#__ROOT__#$IRROOT#" -e "s#<string>0.1</string>#<string>$VERSION</string>#" Info.plist > "$APP/Contents/Info.plist"
 cp Resources/marked.min.js Resources/AppIcon.icns "$APP/Contents/Resources/"
+if [ -n "${IR_DIST:-}" ]; then echo "已编译（DMG 用）：app/$APP"; exit 0; fi
 # 用固定的本机签名证书（钥匙串里的 "Interview Review Local Signing"），这样重新编译后
 # 系统隐私授权（屏幕录音 / 麦克风 / 钥匙串）都还认得是同一个 App；没有证书时退回临时签名。
 SIGN_ID=$(security find-identity -p codesigning 2>/dev/null | awk '/Interview Review Local Signing/ {print $2; exit}')

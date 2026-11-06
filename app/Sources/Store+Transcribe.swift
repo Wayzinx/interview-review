@@ -17,6 +17,7 @@ extension Store {
     }
 
     func importURL(_ file: URL) {
+        guard runtimeReady else { return prepareRuntime { self.importURL(file) } }
         let key = "import:\(file.path)"
         guard jobs[key] == nil else { return }
         jobs[key] = Job(kind: .importing, line: "导入 \(file.lastPathComponent)…")
@@ -45,6 +46,7 @@ extension Store {
     // MARK: 转写
 
     func transcribe(_ id: String) {
+        guard runtimeReady else { return prepareRuntime { self.transcribe(id) } }
         guard jobs[id] == nil else { return }
         jobErrors[id] = nil
         jobs[id] = Job(kind: .transcribe, progress: 0, line: "加载语音模型…")
@@ -107,6 +109,7 @@ extension Store {
     }
 
     func swapSpeakers(_ id: String) {
+        guard runtimeReady else { return prepareRuntime { self.swapSpeakers(id) } }
         guard jobs[id] == nil else { return }
         var out: [String] = []
         _ = try? runProcess(
@@ -125,6 +128,7 @@ extension Store {
 
     /// 生成给妙记上传的混音文件，并在访达里选中它
     func feishuExport(_ id: String, done: @escaping (URL?) -> Void) {
+        guard runtimeReady else { return prepareRuntime { self.feishuExport(id, done: done) } }
         var out: [String] = []
         do {
             try runProcess(
@@ -147,6 +151,7 @@ extension Store {
 
     /// 用妙记导出的文字记录替换本地转写（本地版本备份为 transcript.local.*）
     func feishuImport(_ id: String, file: URL, reanalyze: Bool) {
+        guard runtimeReady else { return prepareRuntime { self.feishuImport(id, file: file, reanalyze: reanalyze) } }
         guard jobs[id] == nil else { return }
         jobErrors[id] = nil
         jobs[id] = Job(kind: .transcribe, line: "导入飞书妙记文字记录…")

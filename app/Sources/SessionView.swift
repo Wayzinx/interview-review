@@ -41,6 +41,9 @@ struct SessionView: View {
                 JobBanner(job: job) { store.cancelJob(session.id) }
                     .padding(.horizontal, 20).padding(.bottom, 10)
             }
+            if let rj = store.runtimeJob {
+                RuntimeBanner(job: rj).padding(.horizontal, 20).padding(.bottom, 10)
+            }
             if let err = store.jobErrors[session.id] {
                 ErrorBanner(text: err) { store.jobErrors[session.id] = nil }
                     .padding(.horizontal, 20).padding(.bottom, 10)
@@ -257,6 +260,27 @@ struct JobBanner: View {
                 Text(clock(ctx.date.timeIntervalSince(job.started)))
                     .font(.caption).monospacedDigit().foregroundStyle(.secondary)
                 Button("取消", action: cancel).controlSize(.small)
+            }
+            .padding(10)
+            .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+}
+
+/// DMG 版首次准备转写环境时的横幅
+struct RuntimeBanner: View {
+    let job: Job
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+            HStack(spacing: 12) {
+                ProgressView().controlSize(.small)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("首次使用：正在准备转写环境（约 1GB，几分钟），好了会自动继续").font(.callout.weight(.medium))
+                    Text(job.line).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer()
+                Text(clock(ctx.date.timeIntervalSince(job.started))).font(.caption).monospacedDigit().foregroundStyle(.secondary)
             }
             .padding(10)
             .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))

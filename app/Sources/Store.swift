@@ -24,6 +24,9 @@ final class Store: ObservableObject {
     /// 录完后自动弹出"岗位信息"的会话
     @Published var contextPromptFor: String?
     @Published var renaming: Session?
+    /// DMG 版首次准备转写环境（下载 Python 和语音识别依赖）
+    @Published var runtimeJob: Job? { didSet { updateActivity() } }
+    var afterRuntime: [() -> Void] = []
     /// 主窗口关掉后，从菜单栏 / 通知重新打开（由 MenuBarLabel 注入 openWindow）
     var openMainWindow: (() -> Void)?
 
@@ -73,6 +76,7 @@ final class Store: ObservableObject {
             Task { @MainActor in Store.shared.refresh() }
         }
         recoverInterrupted()
+        installBundledSkill()
     }
 
     func session(_ id: String) -> Session? { sessions.first { $0.id == id } }
@@ -91,6 +95,7 @@ final class Store: ObservableObject {
         let o = AudioDevices.output()
         if o != output { output = o }
         let rd = Readiness(
+            runtime: runtimeReady,
             mic: AVCaptureDevice.authorizationStatus(for: .audio), systemAudio: AudioCapturePermission.status(),
             model: fm.fileExists(atPath: modelDir.path),
             claude: provider == "deepseek" ? deepseekKeySaved : (account.isEmpty ? claudeBinary() != nil : true),
@@ -115,10 +120,12 @@ final class Store: ObservableObject {
     // MARK: 防休眠 / Dock 角标
 
     func updateActivity() {
-        let busy = recording != nil || !jobs.isEmpty
+        let busy = recording != nil || !jobs.isEmpty || runtimeJob != nil
         if busy, activity == nil {
+            // userInitiated 同时挡住 App Nap：面试时 App 在后台，麦克风看门狗等定时器不能被系统推迟
             activity = ProcessInfo.processInfo.beginActivity(
-                options: [.idleSystemSleepDisabled, .suddenTerminationDisabled], reason: "面试录音 / 转写 / 复盘进行中")
+                options: [.userInitiated, .idleSystemSleepDisabled, .suddenTerminationDisabled],
+                reason: "面试录音 / 转写 / 复盘进行中")
         } else if !busy, let a = activity {
             ProcessInfo.processInfo.endActivity(a)
             activity = nil

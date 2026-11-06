@@ -298,6 +298,11 @@ struct ReadinessRows: View {
         let micOK = r.mic == .authorized
         VStack(alignment: .leading, spacing: 10) {
             ReadinessRow(
+                ok: r.runtime, title: "转写环境",
+                detail: r.runtime ? (devRoot != nil ? "使用源码目录的 Python 环境" : "已准备好")
+                    : store.runtimeJob.map { "正在准备：\($0.line)" } ?? "首次使用要下载 Python 和语音识别依赖（约 1GB，几分钟）",
+                button: r.runtime || store.runtimeJob != nil ? nil : "准备", action: { store.prepareRuntime() })
+            ReadinessRow(
                 ok: micOK, title: "麦克风权限",
                 detail: micOK ? "已授权" : r.mic == .denied ? "被拒绝了，去系统设置里打开" : "录你的回答",
                 button: micOK ? nil : "授权", action: { store.requestMic() })

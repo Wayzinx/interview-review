@@ -2,10 +2,23 @@ import AVFoundation
 import Foundation
 
 
-let irRoot: URL = {
-    if let p = Bundle.main.object(forInfoDictionaryKey: "IRRoot") as? String { return URL(fileURLWithPath: p) }
-    return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("interview-review")
+/// 开发版：Info.plist 的 IRRoot 指向源码目录，用源码目录里的 Python 环境
+let devRoot: URL? = {
+    guard let p = Bundle.main.object(forInfoDictionaryKey: "IRRoot") as? String, !p.isEmpty,
+        FileManager.default.fileExists(atPath: p + "/pyproject.toml")
+    else { return nil }
+    return URL(fileURLWithPath: p)
 }()
+/// DMG 版的运行环境放在这里（IR_APP_SUPPORT 可覆盖，测试用）
+let appSupportDir: URL = {
+    if let p = ProcessInfo.processInfo.environment["IR_APP_SUPPORT"], !p.isEmpty { return URL(fileURLWithPath: p) }
+    return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/面试复盘")
+}()
+/// 转写程序所在目录：开发版 = 源码目录；DMG 版 = Application Support 里首次启动时准备的运行环境
+let runtimeRoot: URL = devRoot ?? appSupportDir.appendingPathComponent("runtime")
+/// DMG 版 App 里内置的转写程序、复盘规则和 uv
+let bundledRuntime: URL? = Bundle.main.resourceURL.map { $0.appendingPathComponent("runtime") }
+    .flatMap { FileManager.default.fileExists(atPath: $0.appendingPathComponent("uv").path) ? $0 : nil }
 let homeDir = FileManager.default.homeDirectoryForCurrentUser
 /// 面试数据目录：默认 ~/Interviews，可用环境变量 INTERVIEW_HOME 覆盖（和命令行工具一致）
 let dataRoot: URL = {
@@ -135,6 +148,7 @@ struct ModelTest {
 
 /// 首页 / 设置里的"准备情况"
 struct Readiness: Equatable {
+    var runtime = false
     var mic: AVAuthorizationStatus = .notDetermined
     /// 系统录音（仅声音）权限：0 已授权，1 拒绝，2 未询问，nil 查不到（当作可用）
     var systemAudio: Int?
@@ -142,7 +156,7 @@ struct Readiness: Equatable {
     var model = false
     var claude = false
     var resume = false
-    var allGood: Bool { mic == .authorized && screen && model && claude }
+    var allGood: Bool { runtime && mic == .authorized && screen && model && claude }
 }
 
 /// 启动子进程，按行回调 stdout+stderr（主线程），结束回调退出码。
