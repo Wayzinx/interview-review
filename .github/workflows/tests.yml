@@ -1,0 +1,10 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  transcript-logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      # 只测对话稿逻辑，不装语音模型那些大依赖
+      - run: PYTHONPATH=. uv run --no-project --python 3.12 --with pytest --with numpy python -m pytest -q tests
